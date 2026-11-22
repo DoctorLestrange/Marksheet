@@ -1,0 +1,6 @@
+{
+  "name": "Marksheet",
+  "description": "An accurate exam score calculator with question-by-question mark records, negative marking, session history, and persistent localStorage configuration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
