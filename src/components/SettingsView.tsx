@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Moon, Sun } from 'lucide-react';
 import type { ScoringConfig } from '../types/exam';
 import {
   DEFAULT_CONFIG,
@@ -7,12 +7,15 @@ import {
   formatSignedMark,
   validateConfigInputs,
 } from '../utils/scoring';
+import type { ThemeMode } from '../utils/theme';
 
 interface SettingsViewProps {
   config: ScoringConfig;
+  theme: ThemeMode;
   activeSessionHasRecords: boolean;
   activeSessionRecordedCount: number;
   onSaveConfig: (nextConfig: ScoringConfig, applyToActive: boolean) => void;
+  onSelectTheme: (theme: ThemeMode) => void;
 }
 
 interface ConfigPreset {
@@ -29,9 +32,11 @@ const PRESETS: ConfigPreset[] = [
 
 export function SettingsView({
   config,
+  theme,
   activeSessionHasRecords,
   activeSessionRecordedCount,
   onSaveConfig,
+  onSelectTheme,
 }: SettingsViewProps) {
   const [positiveMark, setPositiveMark] = useState(String(config.positiveMark));
   const [negativeMark, setNegativeMark] = useState(String(config.negativeMark));
@@ -110,27 +115,29 @@ export function SettingsView({
   });
 
   return (
-    <div className="max-w-2xl">
-      <section className="bg-white border border-[#E2E6EC] rounded-xl p-5 sm:p-7">
-        <div className="pb-5 border-b border-[#E2E6EC]">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-[#0F172A]">
+    <div className="max-w-2xl space-y-6">
+      <section className="bg-white dark:bg-[#1C1C1E] border border-[#E2E6EC] dark:border-[#2E2E32] rounded-xl p-5 sm:p-7">
+        <div className="pb-5 border-b border-[#E2E6EC] dark:border-[#2E2E32]">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-[#0F172A] dark:text-[#F2F2F4]">
             Scoring Configuration
           </h1>
-          <p className="text-sm text-[#5B6576] mt-1">
+          <p className="text-sm text-[#5B6576] dark:text-[#9E9EA6] mt-1">
             Configure positive marks, negative deductions, and total question count. Saved automatically in localStorage.
           </p>
         </div>
 
         {/* Presets */}
-        <div className="py-5 border-b border-[#E2E6EC]">
-          <p className="text-xs font-medium text-[#5B6576] mb-2.5">Quick Presets</p>
+        <div className="py-5 border-b border-[#E2E6EC] dark:border-[#2E2E32]">
+          <p className="text-xs font-medium text-[#5B6576] dark:text-[#9E9EA6] mb-2.5">
+            Quick Presets
+          </p>
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((preset) => (
               <button
                 key={preset.label}
                 type="button"
                 onClick={() => handlePreset(preset.config)}
-                className="px-3 py-1.5 text-xs font-medium text-[#334155] bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E6EC] rounded-lg transition-colors whitespace-nowrap"
+                className="px-3 py-1.5 text-xs font-medium text-[#334155] dark:text-[#D4D4D8] bg-[#F8FAFC] dark:bg-[#242427] hover:bg-[#F1F5F9] dark:hover:bg-[#2E2E32] border border-[#E2E6EC] dark:border-[#323236] rounded-lg transition-colors whitespace-nowrap"
               >
                 {preset.label}
               </button>
@@ -144,7 +151,7 @@ export function SettingsView({
             <div>
               <label
                 htmlFor="config-positive"
-                className="block text-sm font-medium text-[#0F172A] mb-1.5"
+                className="block text-sm font-medium text-[#0F172A] dark:text-[#F2F2F4] mb-1.5"
               >
                 Positive Mark
               </label>
@@ -159,16 +166,18 @@ export function SettingsView({
                 }}
                 aria-invalid={Boolean(errors.positiveMark)}
                 aria-describedby={errors.positiveMark ? 'error-positive' : 'hint-positive'}
-                className={`w-full px-3 py-2 font-mono text-sm tabular-nums bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] ${
-                  errors.positiveMark ? 'border-[#BE123C]' : 'border-[#CBD5E1]'
+                className={`w-full px-3 py-2 font-mono text-sm tabular-nums bg-white dark:bg-[#242427] text-[#0F172A] dark:text-[#F2F2F4] border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] dark:focus:ring-[#A1A1AA] ${
+                  errors.positiveMark
+                    ? 'border-[#BE123C] dark:border-[#FB7185]'
+                    : 'border-[#CBD5E1] dark:border-[#3A3A40]'
                 }`}
               />
               {errors.positiveMark ? (
-                <p id="error-positive" className="text-xs text-[#BE123C] mt-1">
+                <p id="error-positive" className="text-xs text-[#BE123C] dark:text-[#FB7185] mt-1">
                   {errors.positiveMark}
                 </p>
               ) : (
-                <p id="hint-positive" className="text-xs text-[#64748B] mt-1">
+                <p id="hint-positive" className="text-xs text-[#64748B] dark:text-[#8E8E96] mt-1">
                   Added for each correct answer
                 </p>
               )}
@@ -177,7 +186,7 @@ export function SettingsView({
             <div>
               <label
                 htmlFor="config-negative"
-                className="block text-sm font-medium text-[#0F172A] mb-1.5"
+                className="block text-sm font-medium text-[#0F172A] dark:text-[#F2F2F4] mb-1.5"
               >
                 Negative Mark
               </label>
@@ -192,16 +201,18 @@ export function SettingsView({
                 }}
                 aria-invalid={Boolean(errors.negativeMark)}
                 aria-describedby={errors.negativeMark ? 'error-negative' : 'hint-negative'}
-                className={`w-full px-3 py-2 font-mono text-sm tabular-nums bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] ${
-                  errors.negativeMark ? 'border-[#BE123C]' : 'border-[#CBD5E1]'
+                className={`w-full px-3 py-2 font-mono text-sm tabular-nums bg-white dark:bg-[#242427] text-[#0F172A] dark:text-[#F2F2F4] border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] dark:focus:ring-[#A1A1AA] ${
+                  errors.negativeMark
+                    ? 'border-[#BE123C] dark:border-[#FB7185]'
+                    : 'border-[#CBD5E1] dark:border-[#3A3A40]'
                 }`}
               />
               {errors.negativeMark ? (
-                <p id="error-negative" className="text-xs text-[#BE123C] mt-1">
+                <p id="error-negative" className="text-xs text-[#BE123C] dark:text-[#FB7185] mt-1">
                   {errors.negativeMark}
                 </p>
               ) : (
-                <p id="hint-negative" className="text-xs text-[#64748B] mt-1">
+                <p id="hint-negative" className="text-xs text-[#64748B] dark:text-[#8E8E96] mt-1">
                   Deducted on wrong (e.g. -0.25 or 0)
                 </p>
               )}
@@ -210,7 +221,7 @@ export function SettingsView({
             <div>
               <label
                 htmlFor="config-total"
-                className="block text-sm font-medium text-[#0F172A] mb-1.5"
+                className="block text-sm font-medium text-[#0F172A] dark:text-[#F2F2F4] mb-1.5"
               >
                 Total Questions
               </label>
@@ -227,16 +238,18 @@ export function SettingsView({
                 }}
                 aria-invalid={Boolean(errors.totalQuestions)}
                 aria-describedby={errors.totalQuestions ? 'error-total' : 'hint-total'}
-                className={`w-full px-3 py-2 font-mono text-sm tabular-nums bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] ${
-                  errors.totalQuestions ? 'border-[#BE123C]' : 'border-[#CBD5E1]'
+                className={`w-full px-3 py-2 font-mono text-sm tabular-nums bg-white dark:bg-[#242427] text-[#0F172A] dark:text-[#F2F2F4] border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] dark:focus:ring-[#A1A1AA] ${
+                  errors.totalQuestions
+                    ? 'border-[#BE123C] dark:border-[#FB7185]'
+                    : 'border-[#CBD5E1] dark:border-[#3A3A40]'
                 }`}
               />
               {errors.totalQuestions ? (
-                <p id="error-total" className="text-xs text-[#BE123C] mt-1">
+                <p id="error-total" className="text-xs text-[#BE123C] dark:text-[#FB7185] mt-1">
                   {errors.totalQuestions}
                 </p>
               ) : (
-                <p id="hint-total" className="text-xs text-[#64748B] mt-1">
+                <p id="hint-total" className="text-xs text-[#64748B] dark:text-[#8E8E96] mt-1">
                   Whole number (1 to 1000)
                 </p>
               )}
@@ -245,20 +258,28 @@ export function SettingsView({
 
           {/* Live Rule Preview */}
           {previewValidation.valid && previewValidation.config && (
-            <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E6EC] rounded-lg text-xs text-[#334155] flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono tabular-nums">
+            <div className="px-4 py-3 bg-[#F8FAFC] dark:bg-[#242427] border border-[#E2E6EC] dark:border-[#323236] rounded-lg text-xs text-[#334155] dark:text-[#D4D4D8] flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono tabular-nums">
               <span>
-                Add: <strong className="text-[#047857]">{formatSignedMark(previewValidation.config.positiveMark)}</strong>
+                Add:{' '}
+                <strong className="text-[#047857] dark:text-[#34D399]">
+                  {formatSignedMark(previewValidation.config.positiveMark)}
+                </strong>
               </span>
               <span aria-hidden="true">·</span>
               <span>
-                Subtract: <strong className="text-[#BE123C]">{formatSignedMark(previewValidation.config.negativeMark)}</strong>
+                Subtract:{' '}
+                <strong className="text-[#BE123C] dark:text-[#FB7185]">
+                  {formatSignedMark(previewValidation.config.negativeMark)}
+                </strong>
               </span>
               <span aria-hidden="true">·</span>
-              <span>Skip: <strong>0</strong></span>
+              <span>
+                Skip: <strong className="text-[#0F172A] dark:text-[#F2F2F4]">0</strong>
+              </span>
               <span aria-hidden="true">·</span>
               <span>
                 Max score:{' '}
-                <strong>
+                <strong className="text-[#0F172A] dark:text-[#F2F2F4]">
                   {formatNumber(
                     previewValidation.config.positiveMark *
                       previewValidation.config.totalQuestions
@@ -270,16 +291,16 @@ export function SettingsView({
 
           {/* Active Session Application Option */}
           {activeSessionHasRecords && (
-            <label className="flex items-start gap-2.5 text-sm text-[#334155] cursor-pointer">
+            <label className="flex items-start gap-2.5 text-sm text-[#334155] dark:text-[#D4D4D8] cursor-pointer">
               <input
                 type="checkbox"
                 checked={applyToActive}
                 onChange={(e) => setApplyToActive(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-[#CBD5E1] text-[#1D4ED8] focus:ring-[#1D4ED8]"
+                className="mt-1 h-4 w-4 rounded border-[#CBD5E1] dark:border-[#52525B] accent-[#1D4ED8] dark:accent-[#F2F2F4]"
               />
               <span>
                 Apply to current active session ({activeSessionRecordedCount} recorded questions)
-                <span className="block text-xs text-[#64748B] mt-0.5">
+                <span className="block text-xs text-[#64748B] dark:text-[#8E8E96] mt-0.5">
                   Recalculates marks for existing answers using the new values. Archived history sessions are never altered.
                 </span>
               </span>
@@ -289,7 +310,7 @@ export function SettingsView({
           {savedNotice && (
             <div
               role="status"
-              className="flex items-center gap-2 text-sm text-[#047857] bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg px-3.5 py-2.5"
+              className="flex items-center gap-2 text-sm text-[#047857] dark:text-[#6EE7B7] bg-[#ECFDF5] dark:bg-[#13261E] border border-[#A7F3D0] dark:border-[#214B3A] rounded-lg px-3.5 py-2.5"
             >
               <Check className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>{savedNotice}</span>
@@ -299,7 +320,7 @@ export function SettingsView({
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-[#1D4ED8] hover:bg-[#1E40AF] active:scale-[0.99] rounded-lg transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8] focus-visible:ring-offset-2"
+              className="px-4 py-2 text-sm font-medium text-white dark:text-[#141415] bg-[#1D4ED8] dark:bg-[#F2F2F4] hover:bg-[#1E40AF] dark:hover:bg-[#E4E4E7] active:scale-[0.99] rounded-lg transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8] dark:focus-visible:ring-[#A1A1AA] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#1C1C1E]"
             >
               Save Settings
             </button>
@@ -307,12 +328,59 @@ export function SettingsView({
             <button
               type="button"
               onClick={handleRestoreDefaults}
-              className="px-4 py-2 text-sm font-medium text-[#475569] hover:text-[#0F172A] bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E6EC] rounded-lg transition-colors whitespace-nowrap"
+              className="px-4 py-2 text-sm font-medium text-[#475569] dark:text-[#D4D4D8] hover:text-[#0F172A] dark:hover:text-[#F2F2F4] bg-[#F8FAFC] dark:bg-[#242427] hover:bg-[#F1F5F9] dark:hover:bg-[#2E2E32] border border-[#E2E6EC] dark:border-[#323236] rounded-lg transition-colors whitespace-nowrap"
             >
               Restore Defaults
             </button>
           </div>
         </form>
+      </section>
+
+      {/* Appearance Section */}
+      <section className="bg-white dark:bg-[#1C1C1E] border border-[#E2E6EC] dark:border-[#2E2E32] rounded-xl p-5 sm:p-7">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="font-display text-base font-bold text-[#0F172A] dark:text-[#F2F2F4]">
+              Appearance
+            </h2>
+            <p className="text-sm text-[#5B6576] dark:text-[#9E9EA6] mt-0.5">
+              Choose between light paper and neutral dark graphite gray.
+            </p>
+          </div>
+
+          <div
+            role="group"
+            aria-label="Theme preference"
+            className="inline-flex items-center p-1 bg-[#F1F5F9] dark:bg-[#242427] rounded-lg shrink-0"
+          >
+            <button
+              type="button"
+              aria-pressed={theme === 'light'}
+              onClick={() => onSelectTheme('light')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                theme === 'light'
+                  ? 'bg-white text-[#0F172A] shadow-xs'
+                  : 'text-[#5B6576] dark:text-[#9E9EA6] hover:text-[#0F172A] dark:hover:text-[#F2F2F4]'
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Light</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={theme === 'dark'}
+              onClick={() => onSelectTheme('dark')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                theme === 'dark'
+                  ? 'bg-[#323236] text-[#F2F2F4] shadow-xs'
+                  : 'text-[#5B6576] dark:text-[#9E9EA6] hover:text-[#0F172A] dark:hover:text-[#F2F2F4]'
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Dark Graphite</span>
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   );

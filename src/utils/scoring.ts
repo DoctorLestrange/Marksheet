@@ -481,3 +481,110 @@ export function generateSessionCsv(session: ExamSession): string {
   ];
   return lines.join('\n');
 }
+
+export interface ExportedSessionPayload {
+  id: string;
+  name: string;
+  status?: 'active' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+  config: ScoringConfig;
+  summary: SessionSummary;
+  records: {
+    questionNumber: number;
+    outcome: QuestionOutcome;
+    mark: number;
+    runningTotal: number;
+    recordedAt: string;
+  }[];
+}
+
+/**
+ * Serializes an ExamSession into a clean, self-describing JSON object without internal undo state.
+ */
+export function serializeSessionForExport(
+  session: ExamSession,
+  status?: 'active' | 'archived'
+): ExportedSessionPayload {
+  const summary = computeSessionSummary(session);
+  const log = computeRunningLog(session);
+
+  return {
+    id: session.id,
+    name: session.name.trim() || 'Untitled Session',
+    ...(status ? { status } : {}),
+    createdAt: new Date(session.createdAt).toISOString(),
+    updatedAt: new Date(session.updatedAt).toISOString(),
+    config: { ...session.config },
+    summary,
+    records: log.map((row) => ({
+      questionNumber: row.questionNumber,
+      outcome: row.outcome,
+      mark: row.mark,
+      runningTotal: row.runningTotal,
+      recordedAt: new Date(row.recordedAt).toISOString(),
+    })),
+  };
+}
+
+/**
+ * Generates pretty-printed JSON for a single exam session.
+ */
+export function generateSessionJson(
+  session: ExamSession,
+  exportedAt: number = Date.now()
+): string {
+  const payload = {
+    format: 'marksheet-session',
+    version: 1,
+    exportedAt: new Date(exportedAt).toISOString(),
+    session: serializeSessionForExport(session),
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Generates pretty-printed JSON containing all sessions (active session if it has recorded marks + archived history).
+ */
+export function generateAllSessionsJson(
+  activeSession: ExamSession,
+  history: ExamSession[],
+  defaultConfig: ScoringConfig,
+  exportedAt: number = Date.now()
+): string {
+  const sessions: ExportedSessionPayload[] = [];
+  const activeSummary = computeSessionSummary(activeSession);
+  const seenIds = new Set<string>();
+
+  if (activeSummary.recordedCount > 0 || history.length === 0) {
+    sessions.push(serializeSessionForExport(activeSession, 'active'));
+    seenIds.add(activeSession.id);
+  }
+
+  for (const archived of history) {
+    if (seenIds.has(archived.id)) continue;
+    sessions.push(serializeSessionForExport(archived, 'archived'));
+    seenIds.add(archived.id);
+  }
+
+  const payload = {
+    format: 'marksheet-export-all',
+    version: 1,
+    exportedAt: new Date(exportedAt).toISOString(),
+    defaultConfig: { ...defaultConfig },
+    sessionCount: sessions.length,
+    sessions,
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Converts a session name into a safe filename slug.
+ */
+export function slugifyFilename(name: string, fallback: string = 'exam-session'): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return slug || fallback;
+}

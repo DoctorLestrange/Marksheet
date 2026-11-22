@@ -17,8 +17,25 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('marksheet_theme_v1');
+          var isDark =
+            saved === 'dark' ||
+            (saved !== 'light' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#141415');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-[#F6F7F9] text-[#0F172A] antialiased selection:bg-[#1D4ED8]/15 selection:text-[#1D4ED8]">
+  <body class="bg-[#F6F7F9] dark:bg-[#141415] text-[#0F172A] dark:text-[#F2F2F4] antialiased selection:bg-[#1D4ED8]/15 dark:selection:bg-[#52525B]/40 selection:text-[#1D4ED8] dark:selection:text-[#F2F2F4]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

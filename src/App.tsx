@@ -14,16 +14,29 @@ import {
   undoLastAction,
 } from './utils/scoring';
 import { loadPersistedState, savePersistedState } from './utils/storage';
+import {
+  applyThemeToDocument,
+  loadStoredTheme,
+  saveStoredTheme,
+  type ThemeMode,
+} from './utils/theme';
 
 export default function App() {
   const [initialLoad] = useState(() => loadPersistedState());
   const [state, setState] = useState<PersistedState>(initialLoad.state);
+  const [theme, setTheme] = useState<ThemeMode>(() => loadStoredTheme());
   const [activeTab, setActiveTab] = useState<ActiveTab>('calculator');
   const [storageError, setStorageError] = useState<string | null>(
     initialLoad.recoveredFromError
       ? 'Previous saved data was unreadable and has been reset to defaults.'
       : null
   );
+
+  // Sync theme class and localStorage preference
+  useEffect(() => {
+    applyThemeToDocument(theme);
+    saveStoredTheme(theme);
+  }, [theme]);
 
   // Persist every state change automatically to localStorage
   useEffect(() => {
@@ -34,6 +47,10 @@ export default function App() {
       setStorageError(null);
     }
   }, [state, storageError, initialLoad.recoveredFromError]);
+
+  const handleToggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
 
   const handleRecordOutcome = useCallback((outcome: QuestionOutcome) => {
     setState((prev) => ({
@@ -181,11 +198,13 @@ export default function App() {
   const activeSummary = computeSessionSummary(state.activeSession);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F6F7F9] text-[#0F172A]">
+    <div className="min-h-screen flex flex-col bg-[#F6F7F9] dark:bg-[#141415] text-[#0F172A] dark:text-[#F2F2F4]">
       <TopBar
         activeTab={activeTab}
         historyCount={state.history.length}
+        theme={theme}
         onSelectTab={setActiveTab}
+        onToggleTheme={handleToggleTheme}
         onStartNewSession={handleStartNewSession}
       />
 
@@ -193,7 +212,7 @@ export default function App() {
         {storageError && (
           <div
             role="alert"
-            className="mb-5 px-4 py-3 bg-[#FFF1F2] border border-[#FECDD3] rounded-lg flex items-center justify-between gap-4 text-sm text-[#9F1239]"
+            className="mb-5 px-4 py-3 bg-[#FFF1F2] dark:bg-[#2A1519] border border-[#FECDD3] dark:border-[#5C2530] rounded-lg flex items-center justify-between gap-4 text-sm text-[#9F1239] dark:text-[#FDA4AF]"
           >
             <span>{storageError}</span>
             <button
@@ -223,6 +242,7 @@ export default function App() {
           <HistoryView
             history={state.history}
             activeSession={state.activeSession}
+            defaultConfig={state.config}
             onResumeSession={handleResumeSession}
             onDeleteSession={handleDeleteSession}
             onClearAllHistory={handleClearAllHistory}
@@ -233,9 +253,11 @@ export default function App() {
         {activeTab === 'settings' && (
           <SettingsView
             config={state.config}
+            theme={theme}
             activeSessionHasRecords={activeSummary.recordedCount > 0}
             activeSessionRecordedCount={activeSummary.recordedCount}
             onSaveConfig={handleSaveConfig}
+            onSelectTheme={setTheme}
           />
         )}
       </main>

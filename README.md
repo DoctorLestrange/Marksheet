@@ -1,11 +1,14 @@
 # Marksheet
 
-**A fast, accurate, client-side exam score calculator with question-by-question mark records, negative marking, session history, and persistent browser storage.**
+**A fast, accurate, client-side exam score calculator with question-by-question mark records, negative marking, session history, dark graphite mode, JSON/CSV exports, and persistent browser storage.**
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
-[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-047857.svg)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Marksheet-1D4ED8?style=flat-square)](https://doctorlestrange.github.io/Marksheet/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React 19](https://img.shields.io/badge/React-19-149ECA?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
+[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-047857.svg?style=flat-square)](LICENSE)
+
+**Live Demo:** [https://doctorlestrange.github.io/Marksheet/](https://doctorlestrange.github.io/Marksheet/)
 
 ![Marksheet Exam Score Calculator](docs/preview.png)
 
@@ -34,10 +37,11 @@ Everything runs locally in your browser using `localStorage`. No backend, accoun
   - **Ledger List View:** Tabular log showing question number, assigned status, exact mark, and cumulative running total.
   - **Filtering & Direct Editing:** Filter by `All`, `Correct`, `Wrong`, `Skipped`, or `Open`. Click any question number to inspect, reassign, or clear its mark without duplicating entries.
 - **Undo & Safe Reset:** Multi-step undo restores previous marks and cursor positions; session resets and history deletions use inline confirmations.
-- **Persistent Session History (`localStorage`):**
+- **Persistent Session History & Exports (`localStorage`):**
   - Automatically persists your active in-progress session across browser reloads.
   - Archives completed or paused sessions with an immutable snapshot of their scoring rules and full question-by-question records.
-  - Inspect archived question logs, resume past sessions, or export any session to **CSV**.
+  - Inspect archived question logs, resume past sessions, export any single session as **JSON** or **CSV**, or export **all sessions as JSON** in one click.
+- **Dark Graphite Mode:** Neutral dark graphite gray theme (saved to `localStorage` with zero-flash load) alongside crisp light paper mode, toggleable from the top bar or Settings.
 - **Configurable Scoring Rules & Presets:**
   - Customize positive mark, negative deduction (including `0` for exams without negative marking), and question count with strict input validation.
   - One-click presets for common exam formats (Standard `+1 / −0.25`, JEE/NEET `+4 / −1`, No Penalty `+1 / 0`, UPSC `+2 / −0.66`).
@@ -70,8 +74,8 @@ Shortcuts are active on the Calculator screen whenever focus is not inside a tex
 ### Installation & Local Development
 
 ```bash
-git clone https://github.com/<your-username>/marksheet.git
-cd marksheet
+git clone https://github.com/doctorlestrange/Marksheet.git
+cd Marksheet
 npm install
 npm run dev
 ```
@@ -153,9 +157,10 @@ A ready-to-use [`netlify.toml`](netlify.toml) is included. Connect the repositor
 │   ├── types/
 │   │   └── exam.ts                # Core TypeScript domain models
 │   ├── utils/
-│   │   ├── scoring.ts             # Pure integer-scaled scoring & session logic
-│   │   ├── scoring.test.ts        # Unit tests for math, transitions & storage
-│   │   └── storage.ts             # Schema-validated localStorage persistence
+│   │   ├── scoring.ts             # Pure integer-scaled scoring, JSON/CSV export & session logic
+│   │   ├── scoring.test.ts        # Unit tests for math, exports, theme & storage
+│   │   ├── storage.ts             # Schema-validated localStorage persistence
+│   │   └── theme.ts               # Light / dark graphite theme & download helpers
 │   ├── App.tsx                    # Root state & persistence orchestration
 │   ├── index.css                  # Tailwind v4 configuration & typography
 │   └── main.tsx                   # Application entry point

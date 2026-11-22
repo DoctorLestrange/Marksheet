@@ -68,14 +68,14 @@ export function QuestionRecordPanel({
   ];
 
   return (
-    <div className="bg-white border border-[#E2E6EC] rounded-xl p-5 sm:p-6">
+    <div className="bg-white dark:bg-[#1C1C1E] border border-[#E2E6EC] dark:border-[#2E2E32] rounded-xl p-5 sm:p-6">
       {/* Panel Header */}
-      <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#E2E6EC]">
+      <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#E2E6EC] dark:border-[#2E2E32]">
         <div>
-          <h2 className="font-display text-base font-bold text-[#0F172A]">
+          <h2 className="font-display text-base font-bold text-[#0F172A] dark:text-[#F2F2F4]">
             Question Record
           </h2>
-          <p className="text-xs text-[#5B6576] mt-0.5">
+          <p className="text-xs text-[#5B6576] dark:text-[#9E9EA6] mt-0.5">
             Select any question to inspect or reassign its mark
           </p>
         </div>
@@ -84,7 +84,7 @@ export function QuestionRecordPanel({
         <div
           role="group"
           aria-label="Record display mode"
-          className="inline-flex items-center p-0.5 bg-[#F1F5F9] rounded-lg shrink-0"
+          className="inline-flex items-center p-0.5 bg-[#F1F5F9] dark:bg-[#242427] rounded-lg shrink-0"
         >
           <button
             type="button"
@@ -92,8 +92,8 @@ export function QuestionRecordPanel({
             onClick={() => setViewMode('grid')}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
               viewMode === 'grid'
-                ? 'bg-white text-[#0F172A] shadow-xs'
-                : 'text-[#5B6576] hover:text-[#0F172A]'
+                ? 'bg-white dark:bg-[#323236] text-[#0F172A] dark:text-[#F2F2F4] shadow-xs'
+                : 'text-[#5B6576] dark:text-[#9E9EA6] hover:text-[#0F172A] dark:hover:text-[#F2F2F4]'
             }`}
           >
             <Grid2x2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -105,8 +105,8 @@ export function QuestionRecordPanel({
             onClick={() => setViewMode('list')}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
               viewMode === 'list'
-                ? 'bg-white text-[#0F172A] shadow-xs'
-                : 'text-[#5B6576] hover:text-[#0F172A]'
+                ? 'bg-white dark:bg-[#323236] text-[#0F172A] dark:text-[#F2F2F4] shadow-xs'
+                : 'text-[#5B6576] dark:text-[#9E9EA6] hover:text-[#0F172A] dark:hover:text-[#F2F2F4]'
             }`}
           >
             <List className="w-3.5 h-3.5" aria-hidden="true" />
@@ -119,7 +119,7 @@ export function QuestionRecordPanel({
       <div
         role="group"
         aria-label="Filter questions"
-        className="flex flex-wrap sm:flex-nowrap items-center gap-1 py-3 border-b border-[#E2E6EC] overflow-x-auto"
+        className="flex flex-wrap sm:flex-nowrap items-center gap-1 py-3 border-b border-[#E2E6EC] dark:border-[#2E2E32] overflow-x-auto"
       >
         {filterTabs.map((tab) => {
           const isActive = filter === tab.id;
@@ -131,8 +131,8 @@ export function QuestionRecordPanel({
               onClick={() => setFilter(tab.id)}
               className={`px-2 py-1 text-[11px] font-medium rounded-md transition-colors whitespace-nowrap shrink-0 tabular-nums ${
                 isActive
-                  ? 'bg-[#0F172A] text-white'
-                  : 'text-[#5B6576] hover:bg-[#F1F5F9] hover:text-[#0F172A]'
+                  ? 'bg-[#0F172A] dark:bg-[#F2F2F4] text-white dark:text-[#141415]'
+                  : 'text-[#5B6576] dark:text-[#9E9EA6] hover:bg-[#F1F5F9] dark:hover:bg-[#262629] hover:text-[#0F172A] dark:hover:text-[#F2F2F4]'
               }`}
             >
               {tab.label} ({tab.count})
@@ -145,7 +145,7 @@ export function QuestionRecordPanel({
       <div className="pt-4">
         {viewMode === 'grid' ? (
           filteredQuestions.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[#5B6576]">
+            <p className="py-10 text-center text-sm text-[#5B6576] dark:text-[#9E9EA6]">
               No questions match this filter.
             </p>
           ) : (
@@ -156,16 +156,16 @@ export function QuestionRecordPanel({
                   const isActive = qNum === session.activeQuestion;
 
                   let cellTone =
-                    'bg-[#F8FAFC] border-[#E2E6EC] text-[#475569] hover:border-[#94A3B8]';
+                    'bg-[#F8FAFC] dark:bg-[#222225] border-[#E2E6EC] dark:border-[#303034] text-[#475569] dark:text-[#A1A1AA] hover:border-[#94A3B8] dark:hover:border-[#52525B]';
                   if (rec?.outcome === 'correct') {
                     cellTone =
-                      'bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46] hover:border-[#34D399]';
+                      'bg-[#ECFDF5] dark:bg-[#13261E] border-[#A7F3D0] dark:border-[#214B3A] text-[#065F46] dark:text-[#6EE7B7] hover:border-[#34D399] dark:hover:border-[#34D399]';
                   } else if (rec?.outcome === 'wrong') {
                     cellTone =
-                      'bg-[#FFF1F2] border-[#FECDD3] text-[#9F1239] hover:border-[#FB7185]';
+                      'bg-[#FFF1F2] dark:bg-[#2A1519] border-[#FECDD3] dark:border-[#5C2530] text-[#9F1239] dark:text-[#FDA4AF] hover:border-[#FB7185] dark:hover:border-[#FB7185]';
                   } else if (rec?.outcome === 'skipped') {
                     cellTone =
-                      'bg-[#F1F5F9] border-[#CBD5E1] text-[#334155] hover:border-[#94A3B8]';
+                      'bg-[#F1F5F9] dark:bg-[#2A2A2E] border-[#CBD5E1] dark:border-[#434349] text-[#334155] dark:text-[#D4D4D8] hover:border-[#94A3B8] dark:hover:border-[#63636B]';
                   }
 
                   const ariaDesc = rec
@@ -179,8 +179,10 @@ export function QuestionRecordPanel({
                       aria-label={ariaDesc}
                       aria-current={isActive ? 'step' : undefined}
                       onClick={() => onSelectQuestion(qNum)}
-                      className={`h-10 rounded-md border flex flex-col items-center justify-center leading-tight transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8] ${cellTone} ${
-                        isActive ? 'ring-2 ring-[#1D4ED8] ring-offset-1 z-10' : ''
+                      className={`h-10 rounded-md border flex flex-col items-center justify-center leading-tight transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8] dark:focus-visible:ring-[#F2F2F4] ${cellTone} ${
+                        isActive
+                          ? 'ring-2 ring-[#1D4ED8] dark:ring-[#F2F2F4] ring-offset-1 dark:ring-offset-[#1C1C1E] z-10'
+                          : ''
                       }`}
                     >
                       <span className="font-mono text-[11px] font-semibold tabular-nums">
@@ -198,31 +200,31 @@ export function QuestionRecordPanel({
         ) : filter === 'unanswered' ? (
           <div className="max-h-[440px] overflow-y-auto">
             {filteredQuestions.length === 0 ? (
-              <p className="py-10 text-center text-sm text-[#5B6576]">
+              <p className="py-10 text-center text-sm text-[#5B6576] dark:text-[#9E9EA6]">
                 All questions have been recorded.
               </p>
             ) : (
-              <div className="divide-y divide-[#E2E6EC]">
+              <div className="divide-y divide-[#E2E6EC] dark:divide-[#2E2E32]">
                 {filteredQuestions.map((qNum) => (
                   <button
                     key={qNum}
                     type="button"
                     onClick={() => onSelectQuestion(qNum)}
-                    className={`w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#F8FAFC] transition-colors ${
-                      qNum === session.activeQuestion ? 'bg-[#EFF6FF]' : ''
+                    className={`w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#F8FAFC] dark:hover:bg-[#242427] transition-colors ${
+                      qNum === session.activeQuestion ? 'bg-[#EFF6FF] dark:bg-[#28282C]' : ''
                     }`}
                   >
-                    <span className="font-mono text-xs font-semibold text-[#0F172A] tabular-nums">
+                    <span className="font-mono text-xs font-semibold text-[#0F172A] dark:text-[#F2F2F4] tabular-nums">
                       Q{qNum}
                     </span>
-                    <span className="text-xs text-[#64748B]">Unanswered</span>
+                    <span className="text-xs text-[#64748B] dark:text-[#8E8E96]">Unanswered</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
         ) : filteredLog.length === 0 ? (
-          <p className="py-10 text-center text-sm text-[#5B6576]">
+          <p className="py-10 text-center text-sm text-[#5B6576] dark:text-[#9E9EA6]">
             {summary.recordedCount === 0
               ? 'No marks recorded yet. Use Add Mark, Subtract Mark, or Skip Question to begin.'
               : 'No recorded questions match this filter.'}
@@ -230,36 +232,36 @@ export function QuestionRecordPanel({
         ) : (
           <div className="max-h-[440px] overflow-y-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-white border-b border-[#E2E6EC]">
-                <tr className="text-xs font-medium text-[#5B6576]">
+              <thead className="sticky top-0 bg-white dark:bg-[#1C1C1E] border-b border-[#E2E6EC] dark:border-[#2E2E32]">
+                <tr className="text-xs font-medium text-[#5B6576] dark:text-[#9E9EA6]">
                   <th className="py-2 pr-2">Q#</th>
                   <th className="py-2 px-2">Outcome</th>
                   <th className="py-2 px-2 text-right">Mark</th>
                   <th className="py-2 pl-2 text-right">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E6EC]">
+              <tbody className="divide-y divide-[#E2E6EC] dark:divide-[#2E2E32]">
                 {filteredLog.map((row) => {
                   const isActive = row.questionNumber === session.activeQuestion;
                   const markColor =
                     row.outcome === 'correct'
-                      ? 'text-[#047857]'
+                      ? 'text-[#047857] dark:text-[#34D399]'
                       : row.outcome === 'wrong'
-                        ? 'text-[#BE123C]'
-                        : 'text-[#475569]';
+                        ? 'text-[#BE123C] dark:text-[#FB7185]'
+                        : 'text-[#475569] dark:text-[#A1A1AA]';
 
                   return (
                     <tr
                       key={row.questionNumber}
-                      className={`hover:bg-[#F8FAFC] transition-colors ${
-                        isActive ? 'bg-[#EFF6FF]' : ''
+                      className={`hover:bg-[#F8FAFC] dark:hover:bg-[#242427] transition-colors ${
+                        isActive ? 'bg-[#EFF6FF] dark:bg-[#28282C]' : ''
                       }`}
                     >
                       <td className="py-2 pr-2">
                         <button
                           type="button"
                           onClick={() => onSelectQuestion(row.questionNumber)}
-                          className="font-mono text-xs font-semibold text-[#0F172A] hover:text-[#1D4ED8] hover:underline tabular-nums"
+                          className="font-mono text-xs font-semibold text-[#0F172A] dark:text-[#F2F2F4] hover:text-[#1D4ED8] dark:hover:text-white hover:underline tabular-nums"
                         >
                           Q{row.questionNumber}
                         </button>
@@ -275,7 +277,7 @@ export function QuestionRecordPanel({
                       >
                         {formatSignedMark(row.mark)}
                       </td>
-                      <td className="py-2 pl-2 text-right font-mono text-xs text-[#334155] tabular-nums">
+                      <td className="py-2 pl-2 text-right font-mono text-xs text-[#334155] dark:text-[#D4D4D8] tabular-nums">
                         {formatNumber(row.runningTotal)}
                       </td>
                     </tr>
@@ -288,19 +290,19 @@ export function QuestionRecordPanel({
       </div>
 
       {/* Legend */}
-      <div className="mt-4 pt-3 border-t border-[#E2E6EC] flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#5B6576]">
+      <div className="mt-4 pt-3 border-t border-[#E2E6EC] dark:border-[#2E2E32] flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#5B6576] dark:text-[#9E9EA6]">
         <span>
-          <strong className="font-mono text-[#047857]">+</strong> Correct (
+          <strong className="font-mono text-[#047857] dark:text-[#34D399]">+</strong> Correct (
           {formatSignedMark(session.config.positiveMark)})
         </span>
         <span aria-hidden="true">·</span>
         <span>
-          <strong className="font-mono text-[#BE123C]">−</strong> Wrong (
+          <strong className="font-mono text-[#BE123C] dark:text-[#FB7185]">−</strong> Wrong (
           {formatSignedMark(session.config.negativeMark)})
         </span>
         <span aria-hidden="true">·</span>
         <span>
-          <strong className="font-mono text-[#475569]">○</strong> Skipped (0)
+          <strong className="font-mono text-[#475569] dark:text-[#D4D4D8]">○</strong> Skipped (0)
         </span>
       </div>
     </div>

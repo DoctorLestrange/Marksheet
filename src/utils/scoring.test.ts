@@ -9,7 +9,9 @@ import {
   DEFAULT_CONFIG,
   formatNumber,
   formatSignedMark,
+  generateAllSessionsJson,
   generateSessionCsv,
+  generateSessionJson,
   recordQuestionMark,
   resetSessionRecords,
   undoLastAction,
@@ -22,6 +24,7 @@ import {
   STORAGE_KEY,
   type StorageLike,
 } from './storage';
+import { loadStoredTheme, saveStoredTheme } from './theme';
 
 function createMemoryStorage(): StorageLike {
   const map = new Map<string, string>();
@@ -277,3 +280,69 @@ test('localStorage persistence saves, reloads, and recovers gracefully from corr
   assert.deepEqual(recovered.state.config, DEFAULT_CONFIG);
   assert.equal(recovered.state.activeSession.activeQuestion, 1);
 });
+
+test('generateSessionJson exports clean structured session data without undoStack', () => {
+  let session = createSession(DEFAULT_CONFIG, 1, 1000, 's-json');
+  session.name = 'Physics Mock';
+  session = recordQuestionMark(session, 'correct', 1, 1001);
+  session = recordQuestionMark(session, 'wrong', 2, 1002);
+  session = recordQuestionMark(session, 'skipped', 3, 1003);
+
+  const raw = generateSessionJson(session, 2000);
+  const parsed = JSON.parse(raw);
+
+  assert.equal(parsed.format, 'marksheet-session');
+  assert.equal(parsed.version, 1);
+  assert.equal(parsed.session.name, 'Physics Mock');
+  assert.equal(parsed.session.summary.totalScore, 0.75);
+  assert.equal(parsed.session.records.length, 3);
+  assert.equal(parsed.session.records[1].mark, -0.25);
+  assert.equal(parsed.session.records[1].runningTotal, 0.75);
+  assert.equal('undoStack' in parsed.session, false);
+});
+
+test('generateAllSessionsJson exports active recorded session plus archived history', () => {
+  const archived = recordQuestionMark(
+    createSession({ positiveMark: 4, negativeMark: -1, totalQuestions: 50 }, 1, 1000, 'arch-1'),
+    'correct',
+    1,
+    1001
+  );
+  const activeRecorded = recordQuestionMark(
+    createSession(DEFAULT_CONFIG, 2, 2000, 'act-2'),
+    'wrong',
+    1,
+    2001
+  );
+
+  const allRaw = generateAllSessionsJson(activeRecorded, [archived], DEFAULT_CONFIG, 3000);
+  const allParsed = JSON.parse(allRaw);
+  assert.equal(allParsed.format, 'marksheet-export-all');
+  assert.equal(allParsed.sessionCount, 2);
+  assert.equal(allParsed.sessions[0].id, 'act-2');
+  assert.equal(allParsed.sessions[0].status, 'active');
+  assert.equal(allParsed.sessions[1].id, 'arch-1');
+  assert.equal(allParsed.sessions[1].status, 'archived');
+  assert.equal(allParsed.sessions[1].config.positiveMark, 4);
+
+  // When active session is empty and history exists, omit empty active shell
+  const activeEmpty = createSession(DEFAULT_CONFIG, 3, 4000, 'act-empty');
+  const archivedOnly = JSON.parse(
+    generateAllSessionsJson(activeEmpty, [archived], DEFAULT_CONFIG, 5000)
+  );
+  assert.equal(archivedOnly.sessionCount, 1);
+  assert.equal(archivedOnly.sessions[0].id, 'arch-1');
+});
+
+test('theme persistence loads saved preference and falls back cleanly', () => {
+  const storage = createMemoryStorage();
+  assert.equal(loadStoredTheme(storage, false), 'light');
+  assert.equal(loadStoredTheme(storage, true), 'dark');
+
+  saveStoredTheme('dark', storage);
+  assert.equal(loadStoredTheme(storage, false), 'dark');
+
+  saveStoredTheme('light', storage);
+  assert.equal(loadStoredTheme(storage, true), 'light');
+});
+
