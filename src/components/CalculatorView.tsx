@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -51,12 +51,19 @@ export function CalculatorView({
 }: CalculatorViewProps) {
   const [confirmingReset, setConfirmingReset] = useState(false);
 
-  const summary = computeSessionSummary(session);
+  const summary = useMemo(() => computeSessionSummary(session), [session]);
   const currentRecord = session.records[session.activeQuestion] ?? null;
-  const firstUnanswered = findFirstUnanswered(session.records, session.config.totalQuestions);
+  const firstUnanswered = useMemo(
+    () => findFirstUnanswered(session.records, session.config.totalQuestions),
+    [session.records, session.config.totalQuestions]
+  );
   const canUndo = session.undoStack.length > 0 || summary.recordedCount > 0;
 
-  // Reset confirmation automatically clears when session changes or has 0 records
+  // Reset confirmation automatically clears when switching sessions or when 0 records remain
+  useEffect(() => {
+    setConfirmingReset(false);
+  }, [session.id]);
+
   useEffect(() => {
     if (summary.recordedCount === 0 && confirmingReset) {
       setConfirmingReset(false);
@@ -76,19 +83,43 @@ export function CalculatorView({
       ) {
         return;
       }
+
+      if (event.key === 'Escape' && confirmingReset) {
+        event.preventDefault();
+        setConfirmingReset(false);
+        return;
+      }
+
+      // Support standard Ctrl+Z / Cmd+Z undo outside text inputs
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'z'
+      ) {
+        if (canUndo && !event.repeat) {
+          event.preventDefault();
+          onUndo();
+        }
+        return;
+      }
+
       if (event.metaKey || event.ctrlKey || event.altKey) return;
 
       if (event.key === '+' || event.key === '=' || event.key === '1') {
+        if (event.repeat) return;
         event.preventDefault();
         onRecordOutcome('correct');
       } else if (event.key === '-' || event.key === '_' || event.key === '2') {
+        if (event.repeat) return;
         event.preventDefault();
         onRecordOutcome('wrong');
       } else if (event.key === '0' || event.key === 's' || event.key === 'S') {
+        if (event.repeat) return;
         event.preventDefault();
         onRecordOutcome('skipped');
       } else if (event.key === 'Backspace' || event.key === 'z' || event.key === 'Z') {
-        if (canUndo) {
+        if (canUndo && !event.repeat) {
           event.preventDefault();
           onUndo();
         }
@@ -109,6 +140,7 @@ export function CalculatorView({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     canUndo,
+    confirmingReset,
     onRecordOutcome,
     onSelectQuestion,
     onUndo,
@@ -153,6 +185,11 @@ export function CalculatorView({
               aria-label="Session name"
               value={session.name}
               onChange={(e) => onRenameSession(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'Escape') {
+                  e.currentTarget.blur();
+                }
+              }}
               maxLength={80}
               placeholder="Untitled Session"
               className="w-full font-display text-xl sm:text-2xl font-bold tracking-tight text-[#0F172A] dark:text-[#F2F2F4] placeholder:text-[#94A3B8] dark:placeholder:text-[#71717A] bg-transparent border border-transparent hover:border-[#E2E6EC] dark:hover:border-[#323236] focus:border-[#1D4ED8] dark:focus:border-[#71717A] focus:bg-[#F8FAFC] dark:focus:bg-[#242427] rounded-md px-2 -mx-2 py-0.5 transition-colors focus:outline-none"

@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyConfigToSession,
+  calculateMaxScore,
   clearQuestionMark,
   computeRunningLog,
   computeSessionSummary,
+  countRecordsAboveLimit,
   createSession,
   DEFAULT_CONFIG,
   formatNumber,
@@ -14,6 +16,7 @@ import {
   generateSessionJson,
   recordQuestionMark,
   resetSessionRecords,
+  slugifyFilename,
   undoLastAction,
   validateConfigInputs,
 } from './scoring';
@@ -344,5 +347,185 @@ test('theme persistence loads saved preference and falls back cleanly', () => {
 
   saveStoredTheme('light', storage);
   assert.equal(loadStoredTheme(storage, true), 'light');
+});
+
+test('prevents -0.0% scorePercent on small negative scores over large maxScore', () => {
+  let session = createSession(
+    { positiveMark: 1, negativeMark: -0.25, totalQuestions: 1000 },
+    1,
+    1000,
+    's-neg-zero-pct'
+  );
+  session = recordQuestionMark(session, 'wrong', 1, 1001);
+  const summary = computeSessionSummary(session);
+  assert.equal(summary.totalScore, -0.25);
+  assert.equal(summary.scorePercent, 0);
+  assert.equal(Object.is(summary.scorePercent, -0), false);
+  assert.equal(summary.scorePercent.toFixed(1), '0.0');
+  assert.equal(calculateMaxScore({ positiveMark: 0.1, negativeMark: 0, totalQuestions: 3 }), 0.3);
+});
+
+test('validateConfigInputs blocks sub-0.0001 values, hex/scientific notation, and accepts Unicode minus', () => {
+  const tooSmallPos = validateConfigInputs({
+    positiveMark: '0.00001',
+    negativeMark: '-0.25',
+    totalQuestions: '100',
+  });
+  assert.equal(tooSmallPos.valid, false);
+  assert.ok(tooSmallPos.errors.positiveMark);
+
+  const tooSmallNeg = validateConfigInputs({
+    positiveMark: '1',
+    negativeMark: '-0.00001',
+    totalQuestions: '100',
+  });
+  assert.equal(tooSmallNeg.valid, false);
+  assert.ok(tooSmallNeg.errors.negativeMark);
+
+  const hexInput = validateConfigInputs({
+    positiveMark: '0x10',
+    negativeMark: '0',
+    totalQuestions: '100',
+  });
+  assert.equal(hexInput.valid, false);
+  assert.ok(hexInput.errors.positiveMark);
+
+  const sciInput = validateConfigInputs({
+    positiveMark: '1e2',
+    negativeMark: '0',
+    totalQuestions: '100',
+  });
+  assert.equal(sciInput.valid, false);
+  assert.ok(sciInput.errors.positiveMark);
+
+  const unicodeMinus = validateConfigInputs({
+    positiveMark: '1',
+    negativeMark: '−0.25',
+    totalQuestions: '100',
+  });
+  assert.equal(unicodeMinus.valid, true);
+  assert.equal(unicodeMinus.config?.negativeMark, -0.25);
+
+  assert.equal(formatNumber(0.0001), '0.0001');
+});
+
+test('guards against NaN/non-integer question numbers, reserved filenames, and out-of-range timestamps', () => {
+  const base = createSession(DEFAULT_CONFIG, 1, 1000, 's-guard');
+  assert.equal(recordQuestionMark(base, 'correct', Number.NaN), base);
+  assert.equal(recordQuestionMark(base, 'correct', 1.5), base);
+  assert.equal(clearQuestionMark(base, Number.NaN), base);
+
+  assert.equal(slugifyFilename('CON'), 'session-con');
+  assert.equal(slugifyFilename('nul'), 'session-nul');
+  assert.equal(slugifyFilename('   '), 'exam-session');
+  assert.ok(slugifyFilename('a'.repeat(120)).length <= 60);
+
+  // Out-of-range timestamp never throws RangeError during JSON export
+  const weirdTsSession = {
+    ...recordQuestionMark(base, 'correct', 1, 1e20),
+    createdAt: 1e20,
+    updatedAt: -999999,
+  };
+  const json = generateSessionJson(weirdTsSession, 1e20);
+  const parsed = JSON.parse(json);
+  assert.equal(typeof parsed.exportedAt, 'string');
+  assert.equal(typeof parsed.session.createdAt, 'string');
+
+  let pruningSession = createSession(DEFAULT_CONFIG, 1, 1000, 's-prune');
+  pruningSession = recordQuestionMark(pruningSession, 'correct', 10, 1001);
+  pruningSession = recordQuestionMark(pruningSession, 'wrong', 60, 1002);
+  pruningSession = recordQuestionMark(pruningSession, 'skipped', 85, 1003);
+  assert.equal(countRecordsAboveLimit(pruningSession, 50), 2);
+});
+
+test('storage sanitization enforces record-config consistency, deduplicates IDs, and compacts undoStack on quota error', () => {
+  const storage = createMemoryStorage();
+  const tampered = {
+    version: 1,
+    sessionCounter: 2,
+    config: { positiveMark: 0.00001, negativeMark: -0.25, totalQuestions: 50 },
+    activeSession: {
+      id: 'same-id',
+      name: 'Active',
+      createdAt: 1e20,
+      updatedAt: 1000,
+      config: { positiveMark: 2, negativeMark: -0.5, totalQuestions: 50 },
+      records: {
+        1: { questionNumber: 1, outcome: 'skipped', mark: 9999, recordedAt: 1e20 },
+        2: { questionNumber: 2, outcome: 'wrong', mark: 100, recordedAt: 1000 },
+      },
+      activeQuestion: 3,
+      undoStack: [],
+    },
+    history: [
+      // Duplicate of activeSession.id should be excluded
+      {
+        id: 'same-id',
+        name: 'Duplicate Active',
+        createdAt: 1000,
+        updatedAt: 1000,
+        config: DEFAULT_CONFIG,
+        records: {},
+        activeQuestion: 1,
+        undoStack: [],
+      },
+      {
+        id: 'hist-1',
+        name: 'Archived 1',
+        createdAt: 1000,
+        updatedAt: 1000,
+        config: DEFAULT_CONFIG,
+        records: {},
+        activeQuestion: 1,
+        undoStack: [],
+      },
+      // Duplicate history ID should be excluded
+      {
+        id: 'hist-1',
+        name: 'Archived 1 Copy',
+        createdAt: 1000,
+        updatedAt: 1000,
+        config: DEFAULT_CONFIG,
+        records: {},
+        activeQuestion: 1,
+        undoStack: [],
+      },
+    ],
+  };
+
+  storage.setItem(STORAGE_KEY, JSON.stringify(tampered));
+  const loaded = loadPersistedState(storage, 5000);
+
+  // Sub-0.0001 positive mark falls back to default 1 instead of 0
+  assert.equal(loaded.state.config.positiveMark, 1);
+  // Tampered marks re-derived from session config
+  assert.equal(loaded.state.activeSession.records[1]?.mark, 0);
+  assert.equal(loaded.state.activeSession.records[2]?.mark, -0.5);
+  // Out-of-range createdAt sanitized cleanly to valid timestamp
+  assert.equal(loaded.state.activeSession.createdAt, 5000);
+  // Duplicate IDs stripped
+  assert.equal(loaded.state.history.length, 1);
+  assert.equal(loaded.state.history[0].id, 'hist-1');
+
+  // Quota fallback strips archived undoStack and retries once
+  const stateWithUndo = createInitialState(1000);
+  const histSession = recordQuestionMark(createSession(DEFAULT_CONFIG, 1, 1000, 'h-undo'), 'correct', 1, 1001);
+  stateWithUndo.history = [histSession];
+  let writeAttempts = 0;
+  const quotaStorage: StorageLike = {
+    getItem: () => null,
+    removeItem: () => {},
+    setItem: (_k, val) => {
+      writeAttempts += 1;
+      if (writeAttempts === 1) {
+        throw new Error('QuotaExceededError');
+      }
+      const saved = JSON.parse(val);
+      assert.equal(saved.history[0].undoStack.length, 0);
+    },
+  };
+  const saveRes = savePersistedState(stateWithUndo, quotaStorage);
+  assert.equal(saveRes.ok, true);
+  assert.equal(writeAttempts, 2);
 });
 

@@ -1,4 +1,4 @@
-import type { StorageLike } from './storage';
+import { getBrowserStorage, type StorageLike } from './storage';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -8,7 +8,7 @@ export function loadStoredTheme(
   storage?: StorageLike | null,
   prefersDarkFallback?: boolean
 ): ThemeMode {
-  const target = storage ?? (typeof window !== 'undefined' ? window.localStorage : null);
+  const target = storage === undefined ? getBrowserStorage() : storage;
   try {
     const saved = target?.getItem(THEME_STORAGE_KEY);
     if (saved === 'dark' || saved === 'light') {
@@ -22,15 +22,19 @@ export function loadStoredTheme(
     return prefersDarkFallback ? 'dark' : 'light';
   }
 
-  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  try {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+  } catch {
+    // Ignore matchMedia restrictions
   }
 
   return 'light';
 }
 
 export function saveStoredTheme(theme: ThemeMode, storage?: StorageLike | null): void {
-  const target = storage ?? (typeof window !== 'undefined' ? window.localStorage : null);
+  const target = storage === undefined ? getBrowserStorage() : storage;
   try {
     target?.setItem(THEME_STORAGE_KEY, theme);
   } catch {
@@ -53,15 +57,26 @@ export function applyThemeToDocument(theme: ThemeMode): void {
   }
 }
 
-export function triggerFileDownload(content: string, filename: string, mimeType: string): void {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  // Defer revocation so browsers finish reading the blob before cleanup
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+export function triggerFileDownload(content: string, filename: string, mimeType: string): boolean {
+  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    return false;
+  }
+
+  try {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    // Defer revocation so browsers finish reading the blob before cleanup
+    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return true;
+  } catch {
+    return false;
+  }
 }

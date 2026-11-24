@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Grid2x2, List } from 'lucide-react';
 import type { ExamSession, QuestionOutcome } from '../types/exam';
 import {
@@ -34,9 +34,35 @@ export function QuestionRecordPanel({
 }: QuestionRecordPanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [filter, setFilter] = useState<RecordFilter>('all');
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const didMountRef = useRef(false);
 
   const summary = useMemo(() => computeSessionSummary(session), [session]);
   const runningLog = useMemo(() => computeRunningLog(session), [session]);
+
+  // Gently keep the active question visible inside the record container without jumping page scroll
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const activeEl = container.querySelector<HTMLElement>(
+      `[data-question-number="${session.activeQuestion}"]`
+    );
+    if (!activeEl) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const itemRect = activeEl.getBoundingClientRect();
+    const padding = 8;
+
+    if (itemRect.top < containerRect.top + padding) {
+      container.scrollTop -= containerRect.top + padding - itemRect.top;
+    } else if (itemRect.bottom > containerRect.bottom - padding) {
+      container.scrollTop += itemRect.bottom - (containerRect.bottom - padding);
+    }
+  }, [session.activeQuestion, viewMode, filter]);
 
   const filteredQuestions = useMemo(() => {
     const list: number[] = [];
@@ -119,7 +145,7 @@ export function QuestionRecordPanel({
       <div
         role="group"
         aria-label="Filter questions"
-        className="flex flex-wrap sm:flex-nowrap items-center gap-1 py-3 border-b border-[#E2E6EC] dark:border-[#2E2E32] overflow-x-auto"
+        className="flex flex-wrap items-center gap-1 py-3 border-b border-[#E2E6EC] dark:border-[#2E2E32]"
       >
         {filterTabs.map((tab) => {
           const isActive = filter === tab.id;
@@ -149,7 +175,7 @@ export function QuestionRecordPanel({
               No questions match this filter.
             </p>
           ) : (
-            <div className="max-h-[468px] overflow-y-auto p-1 -m-1">
+            <div ref={scrollContainerRef} className="max-h-[468px] overflow-y-auto p-1 -m-1">
               <div className="grid grid-cols-5 sm:grid-cols-10 lg:grid-cols-5 xl:grid-cols-10 gap-1">
                 {filteredQuestions.map((qNum) => {
                   const rec = session.records[qNum];
@@ -176,6 +202,7 @@ export function QuestionRecordPanel({
                     <button
                       key={qNum}
                       type="button"
+                      data-question-number={qNum}
                       aria-label={ariaDesc}
                       aria-current={isActive ? 'step' : undefined}
                       onClick={() => onSelectQuestion(qNum)}
@@ -198,7 +225,7 @@ export function QuestionRecordPanel({
             </div>
           )
         ) : filter === 'unanswered' ? (
-          <div className="max-h-[440px] overflow-y-auto">
+          <div ref={scrollContainerRef} className="max-h-[440px] overflow-y-auto">
             {filteredQuestions.length === 0 ? (
               <p className="py-10 text-center text-sm text-[#5B6576] dark:text-[#9E9EA6]">
                 All questions have been recorded.
@@ -209,8 +236,9 @@ export function QuestionRecordPanel({
                   <button
                     key={qNum}
                     type="button"
+                    data-question-number={qNum}
                     onClick={() => onSelectQuestion(qNum)}
-                    className={`w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#F8FAFC] dark:hover:bg-[#242427] transition-colors ${
+                    className={`w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#F8FAFC] dark:hover:bg-[#242427] transition-colors cursor-pointer ${
                       qNum === session.activeQuestion ? 'bg-[#EFF6FF] dark:bg-[#28282C]' : ''
                     }`}
                   >
@@ -230,7 +258,7 @@ export function QuestionRecordPanel({
               : 'No recorded questions match this filter.'}
           </p>
         ) : (
-          <div className="max-h-[440px] overflow-y-auto">
+          <div ref={scrollContainerRef} className="max-h-[440px] overflow-y-auto">
             <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-white dark:bg-[#1C1C1E] border-b border-[#E2E6EC] dark:border-[#2E2E32]">
                 <tr className="text-xs font-medium text-[#5B6576] dark:text-[#9E9EA6]">
@@ -253,15 +281,20 @@ export function QuestionRecordPanel({
                   return (
                     <tr
                       key={row.questionNumber}
-                      className={`hover:bg-[#F8FAFC] dark:hover:bg-[#242427] transition-colors ${
+                      data-question-number={row.questionNumber}
+                      onClick={() => onSelectQuestion(row.questionNumber)}
+                      className={`hover:bg-[#F8FAFC] dark:hover:bg-[#242427] transition-colors cursor-pointer ${
                         isActive ? 'bg-[#EFF6FF] dark:bg-[#28282C]' : ''
                       }`}
                     >
                       <td className="py-2 pr-2">
                         <button
                           type="button"
-                          onClick={() => onSelectQuestion(row.questionNumber)}
-                          className="font-mono text-xs font-semibold text-[#0F172A] dark:text-[#F2F2F4] hover:text-[#1D4ED8] dark:hover:text-white hover:underline tabular-nums"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectQuestion(row.questionNumber);
+                          }}
+                          className="font-mono text-xs font-semibold text-[#0F172A] dark:text-[#F2F2F4] hover:text-[#1D4ED8] dark:hover:text-white hover:underline tabular-nums cursor-pointer"
                         >
                           Q{row.questionNumber}
                         </button>

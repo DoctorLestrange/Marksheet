@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Download, FileJson, Play, Trash2 } from 'lucide-react';
 import type { ExamSession, ScoringConfig } from '../types/exam';
 import {
@@ -9,6 +9,7 @@ import {
   generateAllSessionsJson,
   generateSessionCsv,
   generateSessionJson,
+  getLocalDateStamp,
   slugifyFilename,
 } from '../utils/scoring';
 import { triggerFileDownload } from '../utils/theme';
@@ -62,26 +63,32 @@ export function HistoryView({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
 
+  useEffect(() => {
+    if (!confirmClearAll && confirmDeleteId === null) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setConfirmClearAll(false);
+        setConfirmDeleteId(null);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [confirmClearAll, confirmDeleteId]);
+
   const activeSummary = computeSessionSummary(activeSession);
+  const activeDisplayName = activeSession.name.trim() || 'Untitled Session';
   const canExportAll = history.length > 0 || activeSummary.recordedCount > 0;
 
-  const aggregateStats = history.reduce(
-    (acc, session) => {
-      const s = computeSessionSummary(session);
-      return {
-        totalPct: acc.totalPct + s.scorePercent,
-        bestScore: Math.max(acc.bestScore, s.totalScore),
-        bestPct: Math.max(acc.bestPct, s.scorePercent),
-      };
-    },
-    { totalPct: 0, bestScore: -Infinity, bestPct: -Infinity }
+  const totalPct = history.reduce(
+    (sum, session) => sum + computeSessionSummary(session).scorePercent,
+    0
   );
-
-  const avgPct = history.length > 0 ? aggregateStats.totalPct / history.length : 0;
+  const rawAvgPct = history.length > 0 ? Math.round((totalPct / history.length) * 10) / 10 : 0;
+  const avgPct = rawAvgPct === 0 ? 0 : rawAvgPct;
 
   function handleExportAllJson() {
     const json = generateAllSessionsJson(activeSession, history, defaultConfig);
-    const dateStamp = new Date().toISOString().slice(0, 10);
+    const dateStamp = getLocalDateStamp();
     triggerFileDownload(
       json,
       `marksheet-all-sessions-${dateStamp}.json`,
@@ -161,7 +168,7 @@ export function HistoryView({
               Active Session (Auto-saved)
             </p>
             <p className="font-display text-base font-semibold text-[#0F172A] dark:text-[#F2F2F4] mt-0.5 truncate">
-              {activeSession.name}
+              {activeDisplayName}
             </p>
             <p className="font-mono text-xs text-[#5B6576] dark:text-[#9E9EA6] tabular-nums mt-0.5">
               Score {formatNumber(activeSummary.totalScore)} · {activeSummary.recordedCount}/
@@ -210,6 +217,7 @@ export function HistoryView({
           <div className="divide-y divide-[#E2E6EC] dark:divide-[#2E2E32]">
             {history.map((session) => {
               const summary = computeSessionSummary(session);
+              const displayName = session.name.trim() || 'Untitled Session';
               const isExpanded = expandedId === session.id;
               const log = isExpanded ? computeRunningLog(session) : [];
 
@@ -219,7 +227,7 @@ export function HistoryView({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <h2 className="font-display text-base font-bold text-[#0F172A] dark:text-[#F2F2F4] truncate">
-                          {session.name}
+                          {displayName}
                         </h2>
                         <span className="text-xs text-[#64748B] dark:text-[#8E8E96]">
                           {formatDateTime(session.updatedAt)}
@@ -256,7 +264,13 @@ export function HistoryView({
 
                     <div className="flex flex-wrap items-center justify-between md:justify-end gap-4 shrink-0">
                       <div className="text-left md:text-right">
-                        <p className="font-mono text-2xl font-semibold text-[#0F172A] dark:text-[#F2F2F4] tabular-nums leading-none">
+                        <p
+                          className={`font-mono text-2xl font-semibold tabular-nums leading-none ${
+                            summary.totalScore < 0
+                              ? 'text-[#BE123C] dark:text-[#FB7185]'
+                              : 'text-[#0F172A] dark:text-[#F2F2F4]'
+                          }`}
+                        >
                           {formatNumber(summary.totalScore)}
                           <span className="text-sm font-normal text-[#64748B] dark:text-[#8E8E96]">
                             {' '}
@@ -272,7 +286,7 @@ export function HistoryView({
                         <button
                           type="button"
                           aria-expanded={isExpanded}
-                          aria-label={`Inspect record for ${session.name}`}
+                          aria-label={`Inspect record for ${displayName}`}
                           onClick={() => setExpandedId(isExpanded ? null : session.id)}
                           className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#0F172A] dark:text-[#F2F2F4] bg-[#F8FAFC] dark:bg-[#242427] hover:bg-[#F1F5F9] dark:hover:bg-[#2E2E32] border border-[#E2E6EC] dark:border-[#323236] rounded-lg transition-colors whitespace-nowrap"
                         >
@@ -286,7 +300,7 @@ export function HistoryView({
 
                         <button
                           type="button"
-                          aria-label={`Resume ${session.name}`}
+                          aria-label={`Resume ${displayName}`}
                           onClick={() => onResumeSession(session.id)}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#1D4ED8] dark:text-[#E4E4E7] hover:bg-[#EFF6FF] dark:hover:bg-[#2C2C30] border border-transparent hover:border-[#BFDBFE] dark:hover:border-[#3F3F46] rounded-lg transition-colors whitespace-nowrap"
                         >
@@ -296,7 +310,7 @@ export function HistoryView({
 
                         <button
                           type="button"
-                          aria-label={`Export JSON for ${session.name}`}
+                          aria-label={`Export JSON for ${displayName}`}
                           onClick={() => downloadSessionJson(session)}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#475569] dark:text-[#D4D4D8] hover:text-[#0F172A] dark:hover:text-[#F2F2F4] hover:bg-[#F1F5F9] dark:hover:bg-[#2C2C30] rounded-lg transition-colors whitespace-nowrap"
                         >
@@ -306,7 +320,7 @@ export function HistoryView({
 
                         <button
                           type="button"
-                          aria-label={`Export CSV for ${session.name}`}
+                          aria-label={`Export CSV for ${displayName}`}
                           onClick={() => downloadCsv(session)}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#475569] dark:text-[#D4D4D8] hover:text-[#0F172A] dark:hover:text-[#F2F2F4] hover:bg-[#F1F5F9] dark:hover:bg-[#2C2C30] rounded-lg transition-colors whitespace-nowrap"
                         >
@@ -318,6 +332,7 @@ export function HistoryView({
                           <div className="inline-flex items-center gap-1.5 pl-1">
                             <button
                               type="button"
+                              aria-label={`Confirm delete ${displayName}`}
                               onClick={() => {
                                 onDeleteSession(session.id);
                                 setConfirmDeleteId(null);
@@ -338,7 +353,7 @@ export function HistoryView({
                         ) : (
                           <button
                             type="button"
-                            aria-label={`Delete ${session.name}`}
+                            aria-label={`Delete ${displayName}`}
                             onClick={() => setConfirmDeleteId(session.id)}
                             className="p-1.5 text-[#64748B] dark:text-[#8E8E96] hover:text-[#BE123C] dark:hover:text-[#FB7185] hover:bg-[#FFF1F2] dark:hover:bg-[#2A1519] rounded-lg transition-colors"
                           >

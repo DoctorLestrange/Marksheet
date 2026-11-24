@@ -59,8 +59,9 @@ Shortcuts are active on the Calculator screen whenever focus is not inside a tex
 | `+`, `=`, or `1` | **Add Mark** (Correct) |
 | `-` or `2` | **Subtract Mark** (Wrong) |
 | `0` or `S` | **Skip Question** |
-| `Backspace` or `Z` | **Undo** last recorded change |
+| `Backspace`, `Z`, or `Ctrl/Cmd+Z` | **Undo** last recorded change |
 | `←` / `→` | Move to previous / next question |
+| `Esc` | Cancel inline reset/delete confirmations |
 
 ---
 
@@ -99,7 +100,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 1. **Single Source of Truth:** A session's score is never stored as an independently incremented mutable counter. All totals, counts, accuracy percentages, and running logs are computed purely from `session.records` (keyed by question number `1..N`), guaranteeing zero desynchronization when editing or undoing past questions.
 2. **Scaled Integer Math:** All decimal marks are converted to scaled integers (`Math.round(value * 10000)`) before summation and converted back cleanly with `-0` normalized to `0`.
-3. **Resilient Persistence:** State is serialized under a versioned `localStorage` key (`marksheet_exam_calculator_v1`). On load, every field is schema-validated and sanitized; corrupted JSON recovers gracefully to defaults instead of crashing.
+3. **Resilient Persistence:** State is serialized under versioned `localStorage` keys (`marksheet_exam_calculator_v1` and `marksheet_theme_v1`) with cross-tab synchronization. On load, every field is schema-validated, record marks are reconciled against session rules, duplicate IDs are stripped, and corrupted data or restricted browser storage recovers gracefully instead of crashing.
 
 ---
 
@@ -149,11 +150,12 @@ A ready-to-use [`netlify.toml`](netlify.toml) is included. Connect the repositor
 │   └── favicon.svg                # Vector app icon
 ├── src/
 │   ├── components/
-│   │   ├── CalculatorView.tsx     # Scoreboard, 3 operational buttons & shortcuts
-│   │   ├── HistoryView.tsx        # Archived sessions, inspection & CSV export
-│   │   ├── QuestionRecordPanel.tsx# OMR grid & running-total ledger
-│   │   ├── SettingsView.tsx       # Scoring config, presets & validation
-│   │   └── TopBar.tsx             # Primary navigation & New Session action
+│   │   ├── CalculatorView.tsx     # Scoreboard, 3 operational buttons, shortcuts & JSON export
+│   │   ├── ErrorBoundary.tsx      # Top-level runtime error recovery boundary
+│   │   ├── HistoryView.tsx        # Archived sessions, inspection, JSON & CSV exports
+│   │   ├── QuestionRecordPanel.tsx# OMR grid & running-total ledger with auto-scroll
+│   │   ├── SettingsView.tsx       # Scoring config, presets, validation & appearance
+│   │   └── TopBar.tsx             # Primary navigation, theme toggle & New Session action
 │   ├── types/
 │   │   └── exam.ts                # Core TypeScript domain models
 │   ├── utils/

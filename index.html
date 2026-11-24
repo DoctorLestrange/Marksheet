@@ -19,8 +19,11 @@
     />
     <script>
       (function () {
+        var saved = null;
         try {
-          var saved = localStorage.getItem('marksheet_theme_v1');
+          saved = localStorage.getItem('marksheet_theme_v1');
+        } catch (e) {}
+        try {
           var isDark =
             saved === 'dark' ||
             (saved !== 'light' &&

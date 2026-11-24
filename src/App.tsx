@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalculatorView } from './components/CalculatorView';
 import { HistoryView } from './components/HistoryView';
 import { SettingsView } from './components/SettingsView';
@@ -13,11 +13,12 @@ import {
   resetSessionRecords,
   undoLastAction,
 } from './utils/scoring';
-import { loadPersistedState, savePersistedState } from './utils/storage';
+import { loadPersistedState, savePersistedState, STORAGE_KEY } from './utils/storage';
 import {
   applyThemeToDocument,
   loadStoredTheme,
   saveStoredTheme,
+  THEME_STORAGE_KEY,
   type ThemeMode,
 } from './utils/theme';
 
@@ -32,21 +33,61 @@ export default function App() {
       : null
   );
 
+  const isRecoveryNoticeRef = useRef(initialLoad.recoveredFromError);
+  const skipNextSaveRef = useRef(false);
+  const skipNextThemeSaveRef = useRef(false);
+
   // Sync theme class and localStorage preference
   useEffect(() => {
     applyThemeToDocument(theme);
+    if (skipNextThemeSaveRef.current) {
+      skipNextThemeSaveRef.current = false;
+      return;
+    }
     saveStoredTheme(theme);
   }, [theme]);
 
-  // Persist every state change automatically to localStorage
+  // Persist every state change automatically to localStorage (never re-runs on dismiss)
   useEffect(() => {
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
     const result = savePersistedState(state);
     if (!result.ok && result.error) {
+      isRecoveryNoticeRef.current = false;
       setStorageError(result.error);
-    } else if (result.ok && storageError && !initialLoad.recoveredFromError) {
+    } else if (result.ok && !isRecoveryNoticeRef.current) {
       setStorageError(null);
     }
-  }, [state, storageError, initialLoad.recoveredFromError]);
+  }, [state]);
+
+  // Keep state and theme synchronized across multiple browser tabs
+  useEffect(() => {
+    function handleStorageEvent(event: StorageEvent) {
+      if (event.key === STORAGE_KEY) {
+        const reloaded = loadPersistedState();
+        skipNextSaveRef.current = true;
+        setState(reloaded.state);
+        if (reloaded.recoveredFromError) {
+          isRecoveryNoticeRef.current = true;
+          setStorageError('Saved data from another tab was unreadable and has been reset.');
+        }
+      } else if (event.key === THEME_STORAGE_KEY) {
+        const syncedTheme = loadStoredTheme();
+        skipNextThemeSaveRef.current = true;
+        setTheme(syncedTheme);
+      }
+    }
+
+    window.addEventListener('storage', handleStorageEvent);
+    return () => window.removeEventListener('storage', handleStorageEvent);
+  }, []);
+
+  const handleDismissStorageError = useCallback(() => {
+    isRecoveryNoticeRef.current = false;
+    setStorageError(null);
+  }, []);
 
   const handleToggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -60,11 +101,13 @@ export default function App() {
   }, []);
 
   const handleSelectQuestion = useCallback((questionNumber: number) => {
+    if (!Number.isFinite(questionNumber)) return;
     setState((prev) => {
       const clamped = Math.min(
         prev.activeSession.config.totalQuestions,
-        Math.max(1, questionNumber)
+        Math.max(1, Math.round(questionNumber))
       );
+      if (clamped === prev.activeSession.activeQuestion) return prev;
       return {
         ...prev,
         activeSession: {
@@ -97,11 +140,12 @@ export default function App() {
   }, []);
 
   const handleRenameSession = useCallback((name: string) => {
+    const trimmedMax = name.slice(0, 80);
     setState((prev) => ({
       ...prev,
       activeSession: {
         ...prev.activeSession,
-        name,
+        name: trimmedMax,
         updatedAt: Date.now(),
       },
     }));
@@ -142,7 +186,9 @@ export default function App() {
       const target = prev.history.find((s) => s.id === sessionId);
       if (!target) return prev;
 
-      const remainingHistory = prev.history.filter((s) => s.id !== sessionId);
+      const remainingHistory = prev.history.filter(
+        (s) => s.id !== sessionId && s.id !== prev.activeSession.id
+      );
       const activeHasRecords = computeSessionSummary(prev.activeSession).recordedCount > 0;
 
       const nextHistory = activeHasRecords
@@ -195,7 +241,10 @@ export default function App() {
     []
   );
 
-  const activeSummary = computeSessionSummary(state.activeSession);
+  const activeSummary = useMemo(
+    () => computeSessionSummary(state.activeSession),
+    [state.activeSession]
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F6F7F9] dark:bg-[#141415] text-[#0F172A] dark:text-[#F2F2F4]">
@@ -217,7 +266,7 @@ export default function App() {
             <span>{storageError}</span>
             <button
               type="button"
-              onClick={() => setStorageError(null)}
+              onClick={handleDismissStorageError}
               className="text-xs font-medium underline shrink-0"
             >
               Dismiss
@@ -254,6 +303,7 @@ export default function App() {
           <SettingsView
             config={state.config}
             theme={theme}
+            activeSession={state.activeSession}
             activeSessionHasRecords={activeSummary.recordedCount > 0}
             activeSessionRecordedCount={activeSummary.recordedCount}
             onSaveConfig={handleSaveConfig}

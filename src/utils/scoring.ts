@@ -17,8 +17,13 @@ export const DEFAULT_CONFIG: ScoringConfig = {
 
 export const MAX_TOTAL_QUESTIONS = 1000;
 export const MIN_TOTAL_QUESTIONS = 1;
+export const MIN_POSITIVE_MARK = 0.0001;
+export const MAX_MARK_VALUE = 1000;
+export const MAX_UNDO_HISTORY = 250;
+export const MAX_VALID_TIMESTAMP = 8_640_000_000_000_000;
 const DECIMAL_SCALE = 10000;
-const MAX_UNDO_HISTORY = 250;
+const DECIMAL_INPUT_PATTERN = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
+const WINDOWS_RESERVED_FILENAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
 /**
  * Converts a finite decimal number to a scaled integer to eliminate
@@ -50,8 +55,8 @@ export function normalizeDecimal(value: number): number {
 export function formatNumber(value: number): string {
   const clean = normalizeDecimal(value);
   if (clean === 0) return '0';
-  // Use up to 4 decimal places without trailing zeros
-  return Number(clean.toFixed(4)).toString();
+  // Fixed 4-decimal string with trailing zeros stripped — avoids scientific notation and -0
+  return clean.toFixed(4).replace(/\.?0+$/, '');
 }
 
 /**
@@ -81,6 +86,49 @@ export function getMarkForOutcome(outcome: QuestionOutcome, config: ScoringConfi
 }
 
 /**
+ * Clamps and normalizes any ScoringConfig to safe, finite, exact values.
+ */
+export function normalizeConfig(config: Partial<ScoringConfig> | null | undefined): ScoringConfig {
+  const rawPos =
+    typeof config?.positiveMark === 'number' && Number.isFinite(config.positiveMark)
+      ? Math.abs(config.positiveMark)
+      : NaN;
+  const normalizedPos = Number.isFinite(rawPos) ? normalizeDecimal(rawPos) : 0;
+  const positiveMark =
+    normalizedPos >= MIN_POSITIVE_MARK && normalizedPos <= MAX_MARK_VALUE
+      ? normalizedPos
+      : DEFAULT_CONFIG.positiveMark;
+
+  const rawNeg =
+    typeof config?.negativeMark === 'number' && Number.isFinite(config.negativeMark)
+      ? Math.abs(config.negativeMark)
+      : NaN;
+  const normalizedNeg =
+    Number.isFinite(rawNeg) && rawNeg <= MAX_MARK_VALUE
+      ? normalizeDecimal(-rawNeg)
+      : DEFAULT_CONFIG.negativeMark;
+  const negativeMark = normalizedNeg === 0 ? 0 : normalizedNeg;
+
+  const rawTotal =
+    typeof config?.totalQuestions === 'number' && Number.isFinite(config.totalQuestions)
+      ? Math.round(config.totalQuestions)
+      : DEFAULT_CONFIG.totalQuestions;
+  const totalQuestions = Math.min(
+    MAX_TOTAL_QUESTIONS,
+    Math.max(MIN_TOTAL_QUESTIONS, rawTotal)
+  );
+
+  return { positiveMark, negativeMark, totalQuestions };
+}
+
+/**
+ * Computes exact maximum possible score using integer-scaled multiplication.
+ */
+export function calculateMaxScore(config: ScoringConfig): number {
+  return fromScaledInt(toScaledInt(config.positiveMark) * config.totalQuestions);
+}
+
+/**
  * Creates a fresh exam session with a unique ID and snapshot of the scoring config.
  */
 export function createSession(
@@ -89,20 +137,14 @@ export function createSession(
   now: number = Date.now(),
   id?: string
 ): ExamSession {
-  const safeConfig: ScoringConfig = {
-    positiveMark: normalizeDecimal(Math.abs(config.positiveMark)) || DEFAULT_CONFIG.positiveMark,
-    negativeMark: normalizeDecimal(-Math.abs(config.negativeMark)),
-    totalQuestions: Math.min(
-      MAX_TOTAL_QUESTIONS,
-      Math.max(MIN_TOTAL_QUESTIONS, Math.round(config.totalQuestions))
-    ),
-  };
+  const safeConfig = normalizeConfig(config);
+  const safeNow = isValidTimestamp(now) ? now : Date.now();
 
   return {
-    id: id ?? `session_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    id: id ?? `session_${safeNow}_${Math.random().toString(36).slice(2, 8)}`,
     name: `Session ${sessionNumber}`,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: safeNow,
+    updatedAt: safeNow,
     config: safeConfig,
     records: {},
     activeQuestion: 1,
@@ -152,7 +194,7 @@ export function recordQuestionMark(
   now: number = Date.now()
 ): ExamSession {
   const qNum = targetQuestion ?? session.activeQuestion;
-  if (qNum < 1 || qNum > session.config.totalQuestions) {
+  if (!Number.isInteger(qNum) || qNum < 1 || qNum > session.config.totalQuestions) {
     return session;
   }
 
@@ -197,6 +239,9 @@ export function clearQuestionMark(
   questionNumber: number,
   now: number = Date.now()
 ): ExamSession {
+  if (!Number.isInteger(questionNumber) || questionNumber < 1 || questionNumber > session.config.totalQuestions) {
+    return session;
+  }
   const existing = session.records[questionNumber];
   if (!existing) return session;
 
@@ -229,10 +274,16 @@ export function undoLastAction(session: ExamSession, now: number = Date.now()): 
     const last = session.undoStack[session.undoStack.length - 1];
     const nextRecords = { ...session.records };
 
-    if (last.previousRecord) {
-      nextRecords[last.questionNumber] = last.previousRecord;
-    } else {
-      delete nextRecords[last.questionNumber];
+    if (
+      Number.isInteger(last.questionNumber) &&
+      last.questionNumber >= 1 &&
+      last.questionNumber <= session.config.totalQuestions
+    ) {
+      if (last.previousRecord) {
+        nextRecords[last.questionNumber] = last.previousRecord;
+      } else {
+        delete nextRecords[last.questionNumber];
+      }
     }
 
     const clampedActive = Math.min(
@@ -298,26 +349,28 @@ export function applyConfigToSession(
   newConfig: ScoringConfig,
   now: number = Date.now()
 ): ExamSession {
+  const safeConfig = normalizeConfig(newConfig);
   const nextRecords: Record<number, QuestionRecord> = {};
 
   for (const key of Object.keys(session.records)) {
     const qNum = Number(key);
-    if (!Number.isInteger(qNum) || qNum < 1 || qNum > newConfig.totalQuestions) {
+    if (!Number.isInteger(qNum) || qNum < 1 || qNum > safeConfig.totalQuestions) {
       continue;
     }
     const existing = session.records[qNum];
+    if (!existing) continue;
     nextRecords[qNum] = {
       ...existing,
-      mark: getMarkForOutcome(existing.outcome, newConfig),
+      mark: getMarkForOutcome(existing.outcome, safeConfig),
     };
   }
 
-  const clampedActive = Math.min(newConfig.totalQuestions, Math.max(1, session.activeQuestion));
+  const clampedActive = Math.min(safeConfig.totalQuestions, Math.max(1, session.activeQuestion));
 
   return {
     ...session,
     updatedAt: now,
-    config: { ...newConfig },
+    config: safeConfig,
     records: nextRecords,
     activeQuestion: clampedActive,
     // Clear undo stack when config changes to avoid restoring stale mark values
@@ -355,16 +408,18 @@ export function computeSessionSummary(session: ExamSession): SessionSummary {
   }
 
   const totalScore = fromScaledInt(totalScaled);
-  const maxScore = fromScaledInt(toScaledInt(session.config.positiveMark) * session.config.totalQuestions);
+  const maxScore = calculateMaxScore(session.config);
   const positiveTotal = fromScaledInt(positiveScaled);
   const negativeTotal = fromScaledInt(negativeScaled);
   const recordedCount = correctCount + wrongCount + skippedCount;
   const attemptedCount = correctCount + wrongCount;
   const remainingCount = Math.max(0, session.config.totalQuestions - recordedCount);
-  const accuracyPercent =
+  const rawAccuracy =
     attemptedCount > 0 ? Math.round((correctCount / attemptedCount) * 1000) / 10 : null;
-  const scorePercent =
+  const accuracyPercent = rawAccuracy === 0 ? 0 : rawAccuracy;
+  const rawScorePercent =
     maxScore > 0 ? Math.round((totalScore / maxScore) * 1000) / 10 : 0;
+  const scorePercent = rawScorePercent === 0 ? 0 : rawScorePercent;
 
   return {
     totalScore,
@@ -407,9 +462,17 @@ export function computeRunningLog(session: ExamSession): RunningLogRow[] {
 }
 
 /**
+ * Normalizes raw numeric string input (trimming whitespace and converting Unicode minus to ASCII).
+ */
+function cleanNumericInput(raw: string): string {
+  return raw.trim().replace(/\u2212/g, '-');
+}
+
+/**
  * Validates raw form string inputs for scoring configuration.
  * Negative mark accepts either negative values (-0.25), positive magnitude (0.25 -> normalized to -0.25),
- * or 0 (no negative marking).
+ * or 0 (no negative marking). Rejects non-decimal notations (hex, scientific) and sub-0.0001 values
+ * that would silently round to 0.
  */
 export function validateConfigInputs(raw: {
   positiveMark: string;
@@ -418,26 +481,30 @@ export function validateConfigInputs(raw: {
 }): ConfigValidationResult {
   const errors: ConfigValidationResult['errors'] = {};
 
-  const posTrimmed = raw.positiveMark.trim();
-  const posNum = Number(posTrimmed);
+  const posTrimmed = cleanNumericInput(raw.positiveMark);
+  const posNum = DECIMAL_INPUT_PATTERN.test(posTrimmed) ? Number(posTrimmed) : NaN;
   if (!posTrimmed || !Number.isFinite(posNum)) {
     errors.positiveMark = 'Enter a valid number for positive mark.';
   } else if (posNum <= 0) {
     errors.positiveMark = 'Positive mark must be greater than 0.';
-  } else if (posNum > 1000) {
-    errors.positiveMark = 'Positive mark must be 1000 or less.';
+  } else if (posNum < MIN_POSITIVE_MARK || normalizeDecimal(posNum) < MIN_POSITIVE_MARK) {
+    errors.positiveMark = `Positive mark must be at least ${MIN_POSITIVE_MARK}.`;
+  } else if (posNum > MAX_MARK_VALUE) {
+    errors.positiveMark = `Positive mark must be ${MAX_MARK_VALUE} or less.`;
   }
 
-  const negTrimmed = raw.negativeMark.trim();
-  const negNum = Number(negTrimmed);
+  const negTrimmed = cleanNumericInput(raw.negativeMark);
+  const negNum = DECIMAL_INPUT_PATTERN.test(negTrimmed) ? Number(negTrimmed) : NaN;
   if (!negTrimmed || !Number.isFinite(negNum)) {
     errors.negativeMark = 'Enter a valid number (e.g. -0.25 or 0).';
-  } else if (Math.abs(negNum) > 1000) {
-    errors.negativeMark = 'Negative mark magnitude must be 1000 or less.';
+  } else if (negNum !== 0 && Math.abs(negNum) < MIN_POSITIVE_MARK) {
+    errors.negativeMark = `Negative mark must be 0 or at least ${MIN_POSITIVE_MARK} in magnitude.`;
+  } else if (Math.abs(negNum) > MAX_MARK_VALUE) {
+    errors.negativeMark = `Negative mark magnitude must be ${MAX_MARK_VALUE} or less.`;
   }
 
-  const totalTrimmed = raw.totalQuestions.trim();
-  const totalNum = Number(totalTrimmed);
+  const totalTrimmed = cleanNumericInput(raw.totalQuestions);
+  const totalNum = DECIMAL_INPUT_PATTERN.test(totalTrimmed) ? Number(totalTrimmed) : NaN;
   if (!totalTrimmed || !Number.isFinite(totalNum)) {
     errors.totalQuestions = 'Enter a valid number of questions.';
   } else if (!Number.isInteger(totalNum)) {
@@ -461,6 +528,63 @@ export function validateConfigInputs(raw: {
       totalQuestions: totalNum,
     },
   };
+}
+
+/**
+ * Returns true if a numeric value is a safe, valid millisecond epoch timestamp for Date.
+ */
+export function isValidTimestamp(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= MAX_VALID_TIMESTAMP
+  );
+}
+
+/**
+ * Converts a timestamp to an ISO string safely without ever throwing RangeError.
+ */
+export function toSafeIsoString(ts: number, fallback: number = Date.now()): string {
+  const safeTs = isValidTimestamp(ts) ? ts : isValidTimestamp(fallback) ? fallback : 0;
+  return new Date(safeTs).toISOString();
+}
+
+/**
+ * Returns local calendar date formatted as YYYY-MM-DD for user-friendly export filenames.
+ */
+export function getLocalDateStamp(now: number = Date.now()): string {
+  const date = new Date(isValidTimestamp(now) ? now : Date.now());
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Returns the highest question number that currently has a recorded mark (or 0 if none).
+ */
+export function getHighestRecordedQuestion(session: ExamSession): number {
+  let highest = 0;
+  for (let q = 1; q <= session.config.totalQuestions; q++) {
+    if (session.records[q]) {
+      highest = q;
+    }
+  }
+  return highest;
+}
+
+/**
+ * Counts how many recorded questions would be pruned if totalQuestions is lowered to `limit`.
+ */
+export function countRecordsAboveLimit(session: ExamSession, limit: number): number {
+  let count = 0;
+  for (let q = limit + 1; q <= session.config.totalQuestions; q++) {
+    if (session.records[q]) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 /**
@@ -513,8 +637,8 @@ export function serializeSessionForExport(
     id: session.id,
     name: session.name.trim() || 'Untitled Session',
     ...(status ? { status } : {}),
-    createdAt: new Date(session.createdAt).toISOString(),
-    updatedAt: new Date(session.updatedAt).toISOString(),
+    createdAt: toSafeIsoString(session.createdAt),
+    updatedAt: toSafeIsoString(session.updatedAt),
     config: { ...session.config },
     summary,
     records: log.map((row) => ({
@@ -522,7 +646,7 @@ export function serializeSessionForExport(
       outcome: row.outcome,
       mark: row.mark,
       runningTotal: row.runningTotal,
-      recordedAt: new Date(row.recordedAt).toISOString(),
+      recordedAt: toSafeIsoString(row.recordedAt),
     })),
   };
 }
@@ -537,7 +661,7 @@ export function generateSessionJson(
   const payload = {
     format: 'marksheet-session',
     version: 1,
-    exportedAt: new Date(exportedAt).toISOString(),
+    exportedAt: toSafeIsoString(exportedAt),
     session: serializeSessionForExport(session),
   };
   return JSON.stringify(payload, null, 2);
@@ -570,7 +694,7 @@ export function generateAllSessionsJson(
   const payload = {
     format: 'marksheet-export-all',
     version: 1,
-    exportedAt: new Date(exportedAt).toISOString(),
+    exportedAt: toSafeIsoString(exportedAt),
     defaultConfig: { ...defaultConfig },
     sessionCount: sessions.length,
     sessions,
@@ -579,12 +703,18 @@ export function generateAllSessionsJson(
 }
 
 /**
- * Converts a session name into a safe filename slug.
+ * Converts a session name into a safe cross-platform filename slug (avoids Windows reserved names).
  */
 export function slugifyFilename(name: string, fallback: string = 'exam-session'): string {
   const slug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-  return slug || fallback;
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 60)
+    .replace(/-+$/, '');
+  if (!slug) return fallback;
+  if (WINDOWS_RESERVED_FILENAME.test(slug)) {
+    return `session-${slug}`;
+  }
+  return slug;
 }

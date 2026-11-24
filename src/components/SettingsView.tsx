@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Check, Moon, Sun } from 'lucide-react';
-import type { ScoringConfig } from '../types/exam';
+import type { ExamSession, ScoringConfig } from '../types/exam';
 import {
+  calculateMaxScore,
+  countRecordsAboveLimit,
   DEFAULT_CONFIG,
   formatNumber,
   formatSignedMark,
@@ -12,6 +14,7 @@ import type { ThemeMode } from '../utils/theme';
 interface SettingsViewProps {
   config: ScoringConfig;
   theme: ThemeMode;
+  activeSession: ExamSession;
   activeSessionHasRecords: boolean;
   activeSessionRecordedCount: number;
   onSaveConfig: (nextConfig: ScoringConfig, applyToActive: boolean) => void;
@@ -33,6 +36,7 @@ const PRESETS: ConfigPreset[] = [
 export function SettingsView({
   config,
   theme,
+  activeSession,
   activeSessionHasRecords,
   activeSessionRecordedCount,
   onSaveConfig,
@@ -105,7 +109,11 @@ export function SettingsView({
     setErrors({});
     const shouldApplyToActive = !activeSessionHasRecords || applyToActive;
     onSaveConfig({ ...DEFAULT_CONFIG }, shouldApplyToActive);
-    setSavedNotice('Default settings restored (+1, −0.25, 100 questions).');
+    setSavedNotice(
+      shouldApplyToActive
+        ? 'Default settings restored (+1, −0.25, 100 questions) and applied to the current session.'
+        : 'Default settings restored (+1, −0.25, 100 questions) for future sessions.'
+    );
   }
 
   const previewValidation = validateConfigInputs({
@@ -113,6 +121,14 @@ export function SettingsView({
     negativeMark,
     totalQuestions,
   });
+
+  const recordsToPrune =
+    activeSessionHasRecords &&
+    applyToActive &&
+    previewValidation.valid &&
+    previewValidation.config
+      ? countRecordsAboveLimit(activeSession, previewValidation.config.totalQuestions)
+      : 0;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -157,8 +173,10 @@ export function SettingsView({
               </label>
               <input
                 id="config-positive"
-                type="number"
-                step="any"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                spellCheck={false}
                 value={positiveMark}
                 onChange={(e) => {
                   setPositiveMark(e.target.value);
@@ -192,8 +210,10 @@ export function SettingsView({
               </label>
               <input
                 id="config-negative"
-                type="number"
-                step="any"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                spellCheck={false}
                 value={negativeMark}
                 onChange={(e) => {
                   setNegativeMark(e.target.value);
@@ -227,10 +247,10 @@ export function SettingsView({
               </label>
               <input
                 id="config-total"
-                type="number"
-                step="1"
-                min="1"
-                max="1000"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                spellCheck={false}
                 value={totalQuestions}
                 onChange={(e) => {
                   setTotalQuestions(e.target.value);
@@ -280,10 +300,7 @@ export function SettingsView({
               <span>
                 Max score:{' '}
                 <strong className="text-[#0F172A] dark:text-[#F2F2F4]">
-                  {formatNumber(
-                    previewValidation.config.positiveMark *
-                      previewValidation.config.totalQuestions
-                  )}
+                  {formatNumber(calculateMaxScore(previewValidation.config))}
                 </strong>
               </span>
             </div>
@@ -291,20 +308,34 @@ export function SettingsView({
 
           {/* Active Session Application Option */}
           {activeSessionHasRecords && (
-            <label className="flex items-start gap-2.5 text-sm text-[#334155] dark:text-[#D4D4D8] cursor-pointer">
-              <input
-                type="checkbox"
-                checked={applyToActive}
-                onChange={(e) => setApplyToActive(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-[#CBD5E1] dark:border-[#52525B] accent-[#1D4ED8] dark:accent-[#F2F2F4]"
-              />
-              <span>
-                Apply to current active session ({activeSessionRecordedCount} recorded questions)
-                <span className="block text-xs text-[#64748B] dark:text-[#8E8E96] mt-0.5">
-                  Recalculates marks for existing answers using the new values. Archived history sessions are never altered.
+            <div className="space-y-2.5">
+              <label className="flex items-start gap-2.5 text-sm text-[#334155] dark:text-[#D4D4D8] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={applyToActive}
+                  onChange={(e) => setApplyToActive(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-[#CBD5E1] dark:border-[#52525B] accent-[#1D4ED8] dark:accent-[#F2F2F4]"
+                />
+                <span>
+                  Apply to current active session ({activeSessionRecordedCount} recorded questions)
+                  <span className="block text-xs text-[#64748B] dark:text-[#8E8E96] mt-0.5">
+                    Recalculates marks for existing answers using the new values. Archived history sessions are never altered.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+
+              {recordsToPrune > 0 && previewValidation.config && (
+                <div
+                  role="alert"
+                  className="px-3.5 py-2.5 text-xs text-[#9F1239] dark:text-[#FDA4AF] bg-[#FFF1F2] dark:bg-[#2A1519] border border-[#FECDD3] dark:border-[#5C2530] rounded-lg"
+                >
+                  Warning: Lowering total questions to {previewValidation.config.totalQuestions}{' '}
+                  will permanently remove {recordsToPrune} recorded{' '}
+                  {recordsToPrune === 1 ? 'question' : 'questions'} numbered above Q
+                  {previewValidation.config.totalQuestions} from your active session.
+                </div>
+              )}
+            </div>
           )}
 
           {savedNotice && (
